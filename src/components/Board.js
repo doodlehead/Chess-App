@@ -20,10 +20,9 @@ class Board extends React.Component {
     super(props);
     this.state = {
       board: this.getBoardPieces(),
-      turn: 'white',
-      turnCount: 0,
-      whitePieces: [],
-      blackPieces: [],
+      turn: 'black',
+      turnCount: -1,
+      pieces: {white: [], black: []},
       highlights: [] //Make highlight deletion more efficient
     };
   }
@@ -75,8 +74,8 @@ class Board extends React.Component {
 
     canvas.on('mouse:down', e => {
       console.log('mouse:down');
-      //TODO: get available moves
-      if(e.target && e.target.piece && e.transform) { //If an object was clicked {
+
+      if(e.target && e.target.piece && e.transform) { //If an object/piece was clicked
         let squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
         moves = this.getValidMoves(squareCoords, e.target.pieceChars);
         console.log(moves);
@@ -114,8 +113,8 @@ class Board extends React.Component {
           e.target.setCoords();
 
           //Next player's turn
-          this.setState({turnCount: this.state.turnCount + 1});
-          this.setState({turn: turnMap[this.state.turnCount % 2]});
+          this.nextTurn();
+
         } else { //Invalid move
           console.log('invalid move!');
           //Move the object back
@@ -129,6 +128,27 @@ class Board extends React.Component {
       //Remove all highlighting
       this.removeHighlights(canvas);
     });
+  }
+  //Proceed to the next player's turn
+  nextTurn() {
+    //onsole.log(this.state.pieces);
+    //console.log(this.state.pieces[this.state.turn].length);
+
+    //Can't move current player's pieces
+    this.state.pieces[this.state.turn].forEach(piece => {
+      console.log('set unselectable');
+      piece.set({selectable: false});
+    });
+
+    //Force it to be synchronous
+    this.setState({turnCount: this.state.turnCount + 1}, () => 
+      this.setState({turn: turnMap[(this.state.turnCount + 2) % 2]}, () => {
+        //Next player's turn
+        this.state.pieces[this.state.turn].forEach(piece => {
+          console.log('set selectable');
+          piece.set({selectable: true});
+        });
+      }));
   }
   //Clone a 2D array
   clone2DArray(array) {
@@ -280,55 +300,79 @@ class Board extends React.Component {
           width: this.props.size/8,
           left: x*this.props.size/8,
           top: y*this.props.size/8,
-          selectable: false
+          selectable: false,
+          hoverCursor: 'default'
         });
         canvas.add(square);
       }
     }
   }
+  //Return Promise that returns a fabric.Image. 
+  getPiecePromise(pieceChars, coords) {
+    let actualCoords = this.squareToCoord(coords.x, coords.y);
+    return new Promise((resolve, reject) => {
+      fabric.Image.fromURL(require(`../assets/icons/Chess_${pieceChars}t60.png`), oImg => {
+        if(oImg) {
+          return resolve(oImg);
+        } else {
+          return reject("Can't create fabric Image");
+        }
+      }, {
+        hasControls: false,
+        originX: 'center',
+        originY: 'center',
+        left: actualCoords.x,
+        top: actualCoords.y,
+        hasBorders: false,
+        piece: true,
+        pieceChars: pieceChars,
+        squareX: coords.x,
+        squareY: coords.y
+      });
+    });
+  }
   //Draw the pieces on the board as represented by the "board" object
   //Use for instantiation only? Then use deltas to account for any changes...
   drawPieces(canvas) {
-    //Render the board
+    //Render the pieces on the board
     let whitePieces = [];
     let blackPieces = [];
+
+    let piecePromises = [];
+
     for(let y = 0; y < 8; y++) {
       for(let x = 0; x < 8; x++) {
         //If it's not empty put a piece there
         if(this.state.board[y][x] !== 'e') {
           let coords = this.squareToCoord(x, y);
-          fabric.Image.fromURL(require(`../assets/icons/Chess_${this.state.board[y][x]}t60.png`), oImg => {
-            canvas.add(oImg);
-            oImg.setCoords();
 
-            if(this.state.board[y][x][1] === 'l') {
-              //white
-              whitePieces.push(oImg);
-            } else if(this.state.board[y][x][1] === 'd'){
-              //black
-              blackPieces.push(oImg);
-            } else {
-              console.error('Error: invalid piece');
-            }
-          }, { 
-            hasControls: false,
-            originX: 'center',
-            originY: 'center',
-            left: coords.x,
-            top: coords.y,
-            hasBorders: false,
-            piece: true,
-            pieceChars: this.state.board[y][x],
-            squareX: x,
-            squareY: y
-          });
+          piecePromises.push(this.getPiecePromise(this.state.board[y][x], {x, y}));
         }
       }
     }
+
+    Promise.all(piecePromises).then(values => {
+      //Put all the pieces on the board
+      values.forEach(img => {
+        canvas.add(img);
+        img.setCoords();
+
+        if(img.pieceChars[1] === 'l') { //White
+          whitePieces.push(img);
+        } else if(img.pieceChars[1] === 'd') { //Black
+          blackPieces.push(img);
+        }
+      });
+
+      //Make it the next turn
+      this.setState({pieces: {white: whitePieces, black: blackPieces}}, () =>
+        this.nextTurn());
+    });
+
   }
   render() {
-    return <div style={{display: "flex", "flexFlow": "column"}}>
-      <div style={{display: "flex", "padding": "0 20px"}}>
+    return <div style={{display: "flex", "flexFlow": "column", "alignItems": "center"}}>
+      <div style={{display: "flex", width: `${this.props.size}px`}}>
         <h1>Turn count: {this.state.turnCount}</h1>
         <h1 style={{"marginLeft": "auto"}}>Turn: {this.state.turn}</h1>
       </div>
