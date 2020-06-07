@@ -66,77 +66,46 @@ class Board extends React.Component {
     canvas.on('mouse:down', this.handleMouseDown);
     //Moving pieces
     canvas.on('mouse:up:before', this.handleBeforeMouseUp);
-    canvas.on('mouse:up', () => {
-      console.log('after mouseup');
-      //this.forceUpdate();
-      // console.log(this.state);
-      // const whitePieces = this.state.pieces.white
-      // //console.log(whitePieces)
-      // const selMap = whitePieces.map(elem => {
-      //   //console.log(elem)
-      //   return elem.selectable;
-      // });
-
-      // console.log(selMap);
-      // console.log(this.canvas);
-    })
   }
 
   handleMouseDown = e => {
-    //console.log('mouse:down');
+    if (e.target?.piece ) { //If an object/piece was clicked
+      let squareCoords = this.coordToSquare(
+        e.pointer.x - (e.transform?.offsetX ?? 0),
+        e.pointer.y - (e.transform?.offsetY ?? 0)
+      );
 
-    if(e.target?.piece && e.transform) { //If an object/piece was clicked
-      let squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
-
+      //Get the valid moves and highlight
       this.setState({ moves: this.getValidMoves(squareCoords, e.target.pieceChars) }, () => {
         const { moves } = this.state;
-        //console.log(moves);
         this.highlightSquares(this.canvas, moves);
       });
     }
   }
 
   handleBeforeMouseUp = e => {
-    console.log(e);
-
-    /*********************************************
-     * DEBUG START
-     *********************************************/
-
-    // const selMap = this.state.pieces?.white?.map(elem => {
-    //   //console.log(elem)
-    //   return elem.selectable;
-    // });
-
-    // console.log(selMap);
-    let whitePawns = this.canvas.getObjects('piece').filter(elem => elem.pieceChars === 'pl');
-    console.log(whitePawns.map(elem => elem.selectable));
-
-    /*********************************************
-     * DEBUG END
-     *********************************************/
-
     if (e.target?.piece && e.transform) { //If an object was clicked
-      //TODO: Fix this. Not the piece's turn
+      //Not the piece's turn
       if (this.state.turn !== colorToTurnMap[e.target.pieceChars[1]]) {
-        throw new Error("It's not your turn!");
+        console.error("It's not your turn!");
+        return;
       }
+
       //Get the square coords of destination
       let squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
-      //console.log(squareCoords);
 
       //Valid move
       if (this.state.moves.some(e => e.x === squareCoords.x && e.y === squareCoords.y)) {
         //Relay changes to the model (this.state.board)
-        //console.log('valid');
+
         //Square coords of the origin
         let fromCoord = this.coordToSquare(e.transform.original.left, e.transform.original.top);
 
         let newBoard = this.clone2DArray(this.state.board);
-        newBoard[fromCoord.y][fromCoord.x] = 'e'; //Old spot is empty
-        newBoard[squareCoords.y][squareCoords.x] = e.target.pieceChars; //New spot is occupied
+        newBoard[fromCoord.y][fromCoord.x] = 'e'; //Set old spot to empty
+        newBoard[squareCoords.y][squareCoords.x] = e.target.pieceChars; //Set new spot to occupied
 
-        this.setState({board: newBoard}); //Update the board state...
+        this.setState({ board: newBoard }); //Update the board state...
         
         //Center the piece relative to the square
         let corrected = this.squareToCoord(squareCoords.x, squareCoords.y);
@@ -145,17 +114,17 @@ class Board extends React.Component {
           top: corrected.y,
           selectable: false,
         });
-        //console.log(e.target);
+
         e.target.setCoords();
-        e.target.selectable = false;
 
         //Next player's turn
         this.nextTurn();
 
-      } else { //Invalid move
+      } else {
+        //Invalid move
         console.log('invalid move!');
-        //Move the object back
-        e.target.set({
+        //Move the object back to original square
+        e.target.setOptions({
           left: e.transform.original.left,
           top: e.transform.original.top
         });
@@ -166,26 +135,27 @@ class Board extends React.Component {
     this.removeHighlights(this.canvas);
   }
 
-  //Proceed to the next player's turn
+  //Lock the current pieces, unlock the next player's pieces
   nextTurn = () => {
     //Can't move current player's pieces when it's the next turn
     this.state.pieces[this.state.turn].forEach(piece => {
-      //console.log(piece);
-      console.log('set unselectable');
-      piece.set({selectable: false});
+      piece.set({
+        selectable: false,
+        evented: false
+      });
     });
 
-    //Force it to be synchronous
+    //Increment turn info and force it to be synchronous
     this.setState({turnCount: this.state.turnCount + 1}, () => 
       this.setState({turn: turnMap[(this.state.turnCount + 2) % 2]}, () => {
-        //Next player's turn
+        //Next player's turn, set pieces selectable and evented
         this.state.pieces[this.state.turn].forEach(piece => {
-          //console.log('set selectable');
-          piece.set({selectable: true});
+          piece.set({
+            selectable: true,
+            evented: true
+          });
         });
       }));
-
-    //this.setState({ pieces: { ...this.state.pieces }})
   }
 
   clone2DArray = array => {
@@ -196,8 +166,11 @@ class Board extends React.Component {
     return clone;
   }
 
-  addIfValid(array, x, y) {
-    //TODO: check for blocking and Check?
+  addIfValid = (array, x, y) => {
+    /*************************************
+     * TODO: check for blocking and Check
+     *************************************/
+ 
     if(x >= 0 && x <= 7 
       && y >= 0 && y <= 7 
       && this.state.board[y][x] === 'e') {
@@ -205,7 +178,13 @@ class Board extends React.Component {
       }
   }
 
-  //Helper method for getValidMoves()
+  /**
+   * Helper method for getValidMoves()
+   * @param {Array} array - The array to add the moves to.
+   * @param {} coords - The starting coordinates: {x, y}
+   * @param {} deltaX - The x-direction to check
+   * @param {} deltaY - The y-direction to check
+   */
   addMoves = (array, coords, deltaX, deltaY) => {
     let tempCoords = {};
     Object.assign(tempCoords, coords); //Clone object
@@ -213,15 +192,15 @@ class Board extends React.Component {
     tempCoords.x += deltaX;
     tempCoords.y += deltaY;
 
-    while(tempCoords.x >= 0 && tempCoords.x <= 7
+    while (tempCoords.x >= 0 && tempCoords.x <= 7
       && tempCoords.y >= 0 && tempCoords.y <= 7) {
       
       //Keep going if the space is empty
-      if(this.state.board[tempCoords.y][tempCoords.x] === 'e') {
+      if (this.state.board[tempCoords.y][tempCoords.x] === 'e') {
         array.push({x: tempCoords.x, y: tempCoords.y});
         tempCoords.x += deltaX;
         tempCoords.y += deltaY;
-    } else if(colorToTurnMap[this.state.board[tempCoords.y][tempCoords.x][1]] !== this.state.turn) {
+    } else if (colorToTurnMap[this.state.board[tempCoords.y][tempCoords.x][1]] !== this.state.turn) {
         array.push({x: tempCoords.x, y: tempCoords.y});
         return;
       } else {
@@ -229,6 +208,7 @@ class Board extends React.Component {
       }
     }
   }
+
   //Helper method for getValidMoves()
   addBishopMoves = (array, coords) => {
     this.addMoves(array, coords, 1, 1);
@@ -243,7 +223,12 @@ class Board extends React.Component {
     this.addMoves(array, coords, 0, 1);
     this.addMoves(array, coords, 0, -1);
   }
-  //Get a list of valid moves for each piece type...
+
+  /**
+   * Get a list of valid moves for each piece type
+   * @param {Object} coords - The coordinates of the piece to get moves for: {x, y}
+   * @param {String} pieceChars - A String that represents the kind of piece it is
+   */
   getValidMoves = (coords, pieceChars) => {
     let validMoves = [];
     if(pieceChars[0] === 'p') { //Pawn
@@ -251,7 +236,7 @@ class Board extends React.Component {
         this.addIfValid(validMoves, coords.x, coords.y + 1); //down
         this.addIfValid(validMoves, coords.x + 1, coords.y + 1); //attack right
         this.addIfValid(validMoves, coords.x - 1, coords.y + 1); //attack left
-      } else if(pieceChars[1] === 'l') { //white pawn
+      } else if(pieceChars[1] === 'l') { //White pawn
         this.addIfValid(validMoves, coords.x, coords.y - 1); //up
         this.addIfValid(validMoves, coords.x + 1, coords.y - 1); //attack right
         this.addIfValid(validMoves, coords.x - 1, coords.y - 1); //attack left
@@ -375,6 +360,7 @@ class Board extends React.Component {
       });
     });
   }
+
   //Draw the pieces on the board as represented by the "board" object
   //Use for instantiation only? Then use deltas to account for any changes...
   drawPieces = canvas => {
