@@ -1,7 +1,8 @@
 import React from 'react';
 import { fabric } from 'fabric';
 import update from 'immutability-helper';
-import { STARTING_BOARD } from '../utils/constants';
+import { STARTING_BOARD, turnMap, colorToTurnMap } from '../utils/constants';
+import { getValidMoves } from '../utils/methods';
 
 //May not need this
 const pieceToImgMap = {
@@ -12,9 +13,6 @@ const pieceToImgMap = {
   king: 'k',
   queen: 'q',
 };
-
-const turnMap = { 0: 'white', 1: 'black' };
-const colorToTurnMap = { l: 'white', d: 'black' };
 
 class Board extends React.Component {
   constructor(props) {
@@ -76,7 +74,14 @@ class Board extends React.Component {
       );
 
       //Get the valid moves and highlight
-      this.setState({ moves: this.getValidMoves(squareCoords, e.target.pieceChars) }, () => {
+      this.setState({ 
+        moves: getValidMoves({
+          board: this.state.board,
+          coords: squareCoords,
+          pieceChars: e.target.pieceChars,
+          turn: this.state.turn
+        })
+      }, () => {
         const { moves } = this.state;
         this.highlightSquares(this.canvas, moves);
       });
@@ -164,114 +169,6 @@ class Board extends React.Component {
       clone.push(row.slice(0));
     });
     return clone;
-  }
-
-  addIfValid = (array, x, y) => {
-    /*************************************
-     * TODO: check for blocking and Check
-     *************************************/
- 
-    if(x >= 0 && x <= 7 
-      && y >= 0 && y <= 7 
-      && this.state.board[y][x] === 'e') {
-        array.push({x, y});
-      }
-  }
-
-  /**
-   * Helper method for getValidMoves()
-   * @param {Array} array - The array to add the moves to.
-   * @param {} coords - The starting coordinates: {x, y}
-   * @param {} deltaX - The x-direction to check
-   * @param {} deltaY - The y-direction to check
-   */
-  addMoves = (array, coords, deltaX, deltaY) => {
-    let tempCoords = {};
-    Object.assign(tempCoords, coords); //Clone object
-
-    tempCoords.x += deltaX;
-    tempCoords.y += deltaY;
-
-    while (tempCoords.x >= 0 && tempCoords.x <= 7
-      && tempCoords.y >= 0 && tempCoords.y <= 7) {
-      
-      //Keep going if the space is empty
-      if (this.state.board[tempCoords.y][tempCoords.x] === 'e') {
-        array.push({x: tempCoords.x, y: tempCoords.y});
-        tempCoords.x += deltaX;
-        tempCoords.y += deltaY;
-    } else if (colorToTurnMap[this.state.board[tempCoords.y][tempCoords.x][1]] !== this.state.turn) {
-        array.push({x: tempCoords.x, y: tempCoords.y});
-        return;
-      } else {
-        return;
-      }
-    }
-  }
-
-  //Helper method for getValidMoves()
-  addBishopMoves = (array, coords) => {
-    this.addMoves(array, coords, 1, 1);
-    this.addMoves(array, coords, 1, -1);
-    this.addMoves(array, coords, -1, 1);
-    this.addMoves(array, coords, -1, -1);
-  }
-  //Helper method for getValidMoves()
-  addRookMoves = (array, coords) => {
-    this.addMoves(array, coords, 1, 0);
-    this.addMoves(array, coords, -1, 0);
-    this.addMoves(array, coords, 0, 1);
-    this.addMoves(array, coords, 0, -1);
-  }
-
-  /**
-   * Get a list of valid moves for each piece type
-   * @param {Object} coords - The coordinates of the piece to get moves for: {x, y}
-   * @param {String} pieceChars - A String that represents the kind of piece it is
-   */
-  getValidMoves = (coords, pieceChars) => {
-    let validMoves = [];
-    if(pieceChars[0] === 'p') { //Pawn
-      if(pieceChars[1] === 'd') { //Black pawn
-        this.addIfValid(validMoves, coords.x, coords.y + 1); //down
-        this.addIfValid(validMoves, coords.x + 1, coords.y + 1); //attack right
-        this.addIfValid(validMoves, coords.x - 1, coords.y + 1); //attack left
-      } else if(pieceChars[1] === 'l') { //White pawn
-        this.addIfValid(validMoves, coords.x, coords.y - 1); //up
-        this.addIfValid(validMoves, coords.x + 1, coords.y - 1); //attack right
-        this.addIfValid(validMoves, coords.x - 1, coords.y - 1); //attack left
-      }
-    } else if(pieceChars[0] === 'n') { //Knight
-      this.addIfValid(validMoves, coords.x + 1, coords.y + 2);
-      this.addIfValid(validMoves, coords.x + 1, coords.y - 2);
-      this.addIfValid(validMoves, coords.x - 1, coords.y + 2);
-      this.addIfValid(validMoves, coords.x - 1, coords.y - 2);
-      this.addIfValid(validMoves, coords.x + 2, coords.y + 1);
-      this.addIfValid(validMoves, coords.x + 2, coords.y - 1);
-      this.addIfValid(validMoves, coords.x - 2, coords.y + 1);
-      this.addIfValid(validMoves, coords.x - 2, coords.y - 1);
-    } else if(pieceChars[0] === 'b') { //Bishop
-      this.addBishopMoves(validMoves, coords);
-    } else if(pieceChars[0] === 'r') { //Rook
-      this.addRookMoves(validMoves, coords);
-    } else if(pieceChars[0] === 'q') { //Queen
-      this.addBishopMoves(validMoves, coords);
-      this.addRookMoves(validMoves, coords);
-    } else if(pieceChars[0] === 'k') { //King
-      this.addIfValid(validMoves, coords.x, coords.y + 1);
-      this.addIfValid(validMoves, coords.x + 1, coords.y + 1);
-      this.addIfValid(validMoves, coords.x + 1, coords.y);
-      this.addIfValid(validMoves, coords.x + 1, coords.y - 1);
-      this.addIfValid(validMoves, coords.x, coords.y - 1);
-      this.addIfValid(validMoves, coords.x - 1, coords.y - 1);
-      this.addIfValid(validMoves, coords.x - 1, coords.y);
-      this.addIfValid(validMoves, coords.x - 1, coords.y + 1);
-    } else {
-      console.error('Error: Not a piece!');
-      throw new Error('Error: Not a valid piece!');
-    }
-
-    return validMoves;
   }
 
   /**
