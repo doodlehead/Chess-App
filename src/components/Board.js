@@ -1,18 +1,8 @@
 import React from 'react';
 import { fabric } from 'fabric';
 import update from 'immutability-helper';
-import { STARTING_BOARD, turnMap, colorToTurnMap, turns } from '../utils/constants';
+import { STARTING_BOARD, turnMap, colorToTurnMap, turns, pieceTypes } from '../utils/constants';
 import { getValidMoves } from '../utils/methods';
-
-//May not need this
-const pieceToImgMap = {
-  pawn: 'p',
-  bishop: 'b',
-  knight: 'n',
-  rook: 'r',
-  king: 'k',
-  queen: 'q',
-};
 
 class Board extends React.Component {
   constructor(props) {
@@ -22,6 +12,10 @@ class Board extends React.Component {
       turn: turns.BLACK,
       turnCount: -1,
       pieces: {
+        white: [],
+        black: []
+      },
+      graveyard: {
         white: [],
         black: []
       },
@@ -67,6 +61,10 @@ class Board extends React.Component {
     canvas.on('mouse:up:before', this.handleBeforeMouseUp);
   }
 
+  getPieceFromCanvas = pieceChars => {
+    return this.canvas.getObjects('piece').find(elem => elem.pieceChars === pieceChars)
+  }
+
   handleMouseDown = e => {
     if (e.target?.piece ) { //If an object/piece was clicked
       const { board, turn } = this.state;
@@ -74,6 +72,11 @@ class Board extends React.Component {
         e.pointer.x - (e.transform?.offsetX ?? 0),
         e.pointer.y - (e.transform?.offsetY ?? 0)
       );
+
+      //If you click a piece that shouldn't exist
+      if (board[squareCoords.y][squareCoords.x] !== e.target.pieceChars) {
+        throw new Error("Fabric Canvas is out of sync with board state");
+      }
 
       //Get the valid moves and highlight
       this.setState({ 
@@ -91,24 +94,35 @@ class Board extends React.Component {
 
   handleBeforeMouseUp = e => {
     if (e.target?.piece && e.transform) { //If an object was clicked
+      const { turn, moves, board } = this.state;
+      const { pieceChars } = e.target;
       //Not the piece's turn
-      if (this.state.turn !== colorToTurnMap[e.target.pieceChars[1]]) {
+      if (turn !== colorToTurnMap[pieceChars[1]]) {
         console.error("It's not your turn!");
         return;
       }
 
       //Get the square coords of destination
-      let squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
+      const squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
 
       //Valid move
-      if (this.state.moves.some(e => e.x === squareCoords.x && e.y === squareCoords.y)) {
+      if (moves.some(e => e.x === squareCoords.x && e.y === squareCoords.y)) {
         //Relay changes to the model (this.state.board)
 
         //Square coords of the origin
-        let fromCoord = this.coordToSquare(e.transform.original.left, e.transform.original.top);
+        const fromCoord = this.coordToSquare(e.transform.original.left, e.transform.original.top);
 
-        let newBoard = this.clone2DArray(this.state.board);
-        newBoard[fromCoord.y][fromCoord.x] = 'e'; //Set old spot to empty
+        const newBoard = this.clone2DArray(board);
+        newBoard[fromCoord.y][fromCoord.x] = pieceTypes.EMPTY; //Set old spot to empty
+        //Take a piece
+        if (newBoard[squareCoords.y][squareCoords.x] !== pieceTypes.EMPTY) {
+          const graveyard = {...this.state.graveyard};
+          graveyard[colorToTurnMap[pieceChars[1]]].push(newBoard[squareCoords.y][squareCoords.x]);
+          this.setState({ graveyard });
+
+          //Delete the Fabric Object from the Canvas
+          this.canvas.remove(this.getPieceFromCanvas(newBoard[squareCoords.y][squareCoords.x]));
+        }
         newBoard[squareCoords.y][squareCoords.x] = e.target.pieceChars; //Set new spot to occupied
 
         this.setState({ board: newBoard }); //Update the board state...
@@ -175,18 +189,20 @@ class Board extends React.Component {
   /**
    * Hightlight a list of squares on the board
    * @param {Object} canvas - Fabric.js canvas to draw on
-   * @param {Array} squareList - A list of coordinates to highlight
+   * @param {Array} squareList - A list of coordinates (valid moves) to highlight
    */
   highlightSquares = (canvas, squareList) => {
     const { size } = this.props;
-    const { turn } = this.state;
+    const { board } = this.state;
     const highlights = [];
 
-    squareList.forEach(coord => {
+    //TODO: Make highlighting prettier?
 
+    squareList.forEach(coord => {
+      const highlightColor = board[coord.y][coord.x] === pieceTypes.EMPTY ? 'yellow' : 'red';
       const square = new fabric.Rect({
         opacity: 0.3,
-        fill: "yellow",
+        fill: highlightColor,
         height: size / 8, 
         width:  size / 8,
         left: coord.x * size / 8,
@@ -205,7 +221,7 @@ class Board extends React.Component {
     this.state.highlights.forEach(square => {
       this.canvas.remove(square);
     });
-    this.setState({highlights: []});
+    this.setState({ highlights: [] });
   }
 
   /**
@@ -238,7 +254,7 @@ class Board extends React.Component {
   getPiecePromise = (pieceChars, coords) => {
     let actualCoords = this.squareToCoord(coords.x, coords.y);
     return new Promise((resolve, reject) => {
-      fabric.Image.fromURL(require(`../assets/icons/Chess_${pieceChars}t60.png`), oImg => {
+      fabric.Image.fromURL(require(`../assets/icons/Chess_${pieceChars.substring(0, 2)}t60.png`), oImg => {
         if (oImg) {
           return resolve(oImg);
         } else {
@@ -263,6 +279,7 @@ class Board extends React.Component {
   //Draw the pieces on the board as represented by the "board" object
   //Use for instantiation only? Then use deltas to account for any changes...
   drawPieces = () => {
+    const { board } = this.state;
     //Render the pieces on the board
     let whitePieces = [];
     let blackPieces = [];
@@ -273,8 +290,8 @@ class Board extends React.Component {
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
         //If it's not empty put a piece there
-        if (this.state.board[y][x] !== 'e') {
-          piecePromises.push(this.getPiecePromise(this.state.board[y][x], {x, y}));
+        if (board[y][x] !== pieceTypes.EMPTY) {
+          piecePromises.push(this.getPiecePromise(board[y][x], {x, y}));
         }
       }
     }
@@ -305,14 +322,24 @@ class Board extends React.Component {
   }
 
   render() {
-    return <div style={{display: "flex", "flexFlow": "column", "alignItems": "center"}}>
-      <div style={{display: "flex", width: `${this.props.size}px`}}>
-        <h1>Turn count: {this.state.turnCount}</h1>
-        <h1 style={{"marginLeft": "auto"}}>Turn: {this.state.turn}</h1>
+    return (
+      <div style={{display: "flex", "flexFlow": "column", "alignItems": "center"}}>
+        <div style={{display: "flex", width: `${this.props.size}px`}}>
+          <h1>Turn count: {this.state.turnCount}</h1>
+          <h1 style={{"marginLeft": "auto"}}>Turn: {this.state.turn}</h1>
+        </div>
+        <canvas id="boardCanvas" className="css-boardCanvas"></canvas>
+        <pre style={{ marginTop: 40, fontSize: 14 }}>{print2DArray(this.state.board)}</pre>
+        <div>{JSON.stringify(this.state.graveyard)}</div>
       </div>
-      <canvas id="boardCanvas" className="css-boardCanvas"></canvas>
-    </div>
+    )
   }
+}
+
+const print2DArray = arr => {
+  let str = '';
+  arr.forEach(row => str += JSON.stringify(row) + '\n');
+  return str;
 }
 
 export default Board;
