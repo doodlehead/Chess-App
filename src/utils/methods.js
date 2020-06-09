@@ -1,4 +1,4 @@
-import { colorToTurnMap } from './constants';
+import { colorToTurnMap, pieceTypes, oppositeColor } from './constants';
 
 /******************************
  *           Moves
@@ -9,21 +9,21 @@ import { colorToTurnMap } from './constants';
  * @param {Array[]} board - 2D array representing the state of the board
  * @param {Object} coords - The coordinates of the piece to get moves for: {x, y}
  * @param {String} pieceChars - A String that represents the kind of piece it is
- * @param {String} turn - Who's turn it is
+ * @param {String} turn - Who's turn it is (white/black)
  */
 export const getValidMoves = ({ board, coords, pieceChars, turn }) => {
   let validMoves = [];
-  if(pieceChars[0] === 'p') { //Pawn
+  if(pieceChars[0] === pieceTypes.PAWN) {
     if(pieceChars[1] === 'd') { //Black pawn
       addIfValid({ board, array: validMoves, x: coords.x, y: coords.y + 1 }); //down
-      addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 1 }); //attack right
-      addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y + 1 }); //attack left
+      (board[coords.y + 1][coords.x + 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 1 }); //attack right
+      (board[coords.y + 1][coords.x - 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y + 1 }); //attack left
     } else if(pieceChars[1] === 'l') { //White pawn
       addIfValid({ board, array: validMoves, x: coords.x, y: coords.y - 1 }); //up
-      addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y - 1 }); //attack right
-      addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y - 1 }); //attack left
+      (board[coords.y - 1][coords.x + 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y - 1 }); //attack right
+      (board[coords.y - 1][coords.x - 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y - 1 }); //attack left
     }
-  } else if(pieceChars[0] === 'n') { //Knight
+  } else if(pieceChars[0] === pieceTypes.KNIGHT) {
     addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 2 });
     addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y - 2 });
     addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y + 2 });
@@ -32,14 +32,14 @@ export const getValidMoves = ({ board, coords, pieceChars, turn }) => {
     addIfValid({ board, array: validMoves, x: coords.x + 2, y: coords.y - 1 });
     addIfValid({ board, array: validMoves, x: coords.x - 2, y: coords.y + 1 });
     addIfValid({ board, array: validMoves, x: coords.x - 2, y: coords.y - 1 });
-  } else if(pieceChars[0] === 'b') { //Bishop
+  } else if(pieceChars[0] === pieceTypes.BISHOP) {
     addBishopMoves({ board, array: validMoves, coords, turn });
-  } else if(pieceChars[0] === 'r') { //Rook
+  } else if(pieceChars[0] === pieceTypes.ROOK) {
     addRookMoves({ board, array: validMoves, coords, turn });
-  } else if(pieceChars[0] === 'q') { //Queen
+  } else if(pieceChars[0] === pieceTypes.QUEEN) {
     addBishopMoves({ board, array: validMoves, coords, turn });
     addRookMoves({ board, array: validMoves, coords, turn });
-  } else if(pieceChars[0] === 'k') { //King
+  } else if(pieceChars[0] === pieceTypes.KING) {
     //Start at top, go around clockwise
     addIfValid({ board, array: validMoves, x: coords.x, y: coords.y + 1 });
     addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 1 });
@@ -55,19 +55,19 @@ export const getValidMoves = ({ board, coords, pieceChars, turn }) => {
   }
 
   return validMoves;
-}
+};
 
-export const addIfValid = ({ board, array, x, y }) => {
-  /*************************************
-   * TODO: check for blocking and Check
-   *************************************/
+export const addIfValid = ({ board, array, x, y, turn }) => {
+  /***********************************************
+   * TODO: check for blocking, Check and attacking
+   **********************************************/
+  if (x < 0 || x > 7 || y < 0 || y > 7) return;
 
-  if (x >= 0 && x <= 7 
-    && y >= 0 && y <= 7 
-    && board[y][x] === 'e') {
-      array.push({x, y});
-    }
-}
+  const pieceChars = board[y][x];
+  if (pieceChars === pieceTypes.EMPTY || colorToTurnMap[pieceChars[1]] !== turn){
+    array.push({x, y});
+  }
+};
 
 //Helper method for getValidMoves()
 export const addBishopMoves = ({ board, array, coords, turn }) => {
@@ -75,7 +75,7 @@ export const addBishopMoves = ({ board, array, coords, turn }) => {
   addMoves({ board, array, coords, deltaX: 1, deltaY: -1, turn });
   addMoves({ board, array, coords, deltaX: -1, deltaY: 1, turn });
   addMoves({ board, array, coords, deltaX: -1, deltaY: -1, turn });
-}
+};
 
 //Helper method for getValidMoves()
 export const addRookMoves = ({ board, array, coords, turn }) => {
@@ -83,10 +83,10 @@ export const addRookMoves = ({ board, array, coords, turn }) => {
   addMoves({ board, array, coords, deltaX: -1, deltaY: 0, turn });
   addMoves({ board, array, coords, deltaX: 0, deltaY: 1, turn });
   addMoves({ board, array, coords, deltaX: 0, deltaY: -1, turn });
-}
+};
 
 /**
-* Helper method for getValidMoves()
+* Helper method for addBishopMoves() and addRookMoves()
 * @param {Array[]} board - 2D array representing the state of the board
 * @param {Array} array - The array to add the moves to.
 * @param {Object} coords - The starting coordinates: {x, y}
@@ -95,26 +95,35 @@ export const addRookMoves = ({ board, array, coords, turn }) => {
 * @param {String} turn - Who's turn it is
 */
 export const addMoves = ({ board, array, coords, deltaX, deltaY, turn }) => {
-  let tempCoords = {};
-  Object.assign(tempCoords, coords); //Clone object
+  let { x, y } = coords;
+  //Object.assign(tempCoords, coords); //Clone object
+  //let { x, y } = tempCoords;
+  x += deltaX;
+  y += deltaY;
 
-  tempCoords.x += deltaX;
-  tempCoords.y += deltaY;
+  while (x >= 0 && x <= 7 && y >= 0 && y <= 7) {
+    const pieceChars = board[y][x];
 
-  while (tempCoords.x >= 0 && tempCoords.x <= 7
-    && tempCoords.y >= 0 && tempCoords.y <= 7) {
-    
     //Keep going if the space is empty
-    if (board[tempCoords.y][tempCoords.x] === 'e') {
-      array.push({x: tempCoords.x, y: tempCoords.y});
-      tempCoords.x += deltaX;
-      tempCoords.y += deltaY;
-  } else if (colorToTurnMap[board[tempCoords.y][tempCoords.x][1]] !== turn) {
+    if (pieceChars === pieceTypes.EMPTY) {
+      array.push({ x, y });
+      x += deltaX;
+      y += deltaY;
+  } else if (getOppositeColor(pieceChars) === turn) {
       //Move that attacks an opponent's piece
-      array.push({x: tempCoords.x, y: tempCoords.y});
+      array.push({ x, y });
       return;
     } else {
-      return;
+      return; //No longer valid
     }
   }
-}
+};
+
+export const getOppositeColor = pieceChars => {
+  if (pieceChars === pieceTypes.EMPTY || !pieceChars) {
+    console.error('Invalid piece chars');
+    return ''; //Not a valid piece chars
+  }
+
+  return oppositeColor[colorToTurnMap[pieceChars[1]]];
+};

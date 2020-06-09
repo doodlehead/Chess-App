@@ -1,7 +1,7 @@
 import React from 'react';
 import { fabric } from 'fabric';
 import update from 'immutability-helper';
-import { STARTING_BOARD, turnMap, colorToTurnMap } from '../utils/constants';
+import { STARTING_BOARD, turnMap, colorToTurnMap, turns } from '../utils/constants';
 import { getValidMoves } from '../utils/methods';
 
 //May not need this
@@ -19,7 +19,7 @@ class Board extends React.Component {
     super(props);
     this.state = {
       board: STARTING_BOARD, //TODO: persist the board into localStorage
-      turn: 'black',
+      turn: turns.BLACK,
       turnCount: -1,
       pieces: {
         white: [],
@@ -49,16 +49,17 @@ class Board extends React.Component {
   }
 
   componentDidMount() {
+    const { size } = this.props
     //Instantiate the Fabric.js canvas
     const canvas = new fabric.Canvas('boardCanvas', {
-      width: this.props.size,
-      height: this.props.size,
+      width: size,
+      height: size,
       selection: false
     });
     this.canvas = canvas;
 
-    this.drawBackground(canvas);
-    this.drawPieces(canvas);
+    this.drawBackground();
+    this.drawPieces();
 
     //Show valid moves on click for pieces
     canvas.on('mouse:down', this.handleMouseDown);
@@ -68,6 +69,7 @@ class Board extends React.Component {
 
   handleMouseDown = e => {
     if (e.target?.piece ) { //If an object/piece was clicked
+      const { board, turn } = this.state;
       let squareCoords = this.coordToSquare(
         e.pointer.x - (e.transform?.offsetX ?? 0),
         e.pointer.y - (e.transform?.offsetY ?? 0)
@@ -76,14 +78,13 @@ class Board extends React.Component {
       //Get the valid moves and highlight
       this.setState({ 
         moves: getValidMoves({
-          board: this.state.board,
+          board,
           coords: squareCoords,
           pieceChars: e.target.pieceChars,
-          turn: this.state.turn
+          turn,
         })
       }, () => {
-        const { moves } = this.state;
-        this.highlightSquares(this.canvas, moves);
+        this.highlightSquares(this.canvas, this.state.moves);
       });
     }
   }
@@ -137,7 +138,7 @@ class Board extends React.Component {
       }
     }
     //Remove all highlighting
-    this.removeHighlights(this.canvas);
+    this.removeHighlights();
   }
 
   //Lock the current pieces, unlock the next player's pieces
@@ -178,9 +179,11 @@ class Board extends React.Component {
    */
   highlightSquares = (canvas, squareList) => {
     const { size } = this.props;
+    const { turn } = this.state;
     const highlights = [];
 
     squareList.forEach(coord => {
+
       const square = new fabric.Rect({
         opacity: 0.3,
         fill: "yellow",
@@ -198,18 +201,17 @@ class Board extends React.Component {
   }
 
   //Remove all highlights
-  removeHighlights = canvas => {
+  removeHighlights = () => {
     this.state.highlights.forEach(square => {
-      canvas.remove(square);
+      this.canvas.remove(square);
     });
     this.setState({highlights: []});
   }
 
   /**
    * Draws the board's checker pattern on the Fabric.js canvas
-   * @param {Object} canvas - The Fabric.js Canvas to draw the board squares on.
    */
-  drawBackground = canvas => {
+  drawBackground = () => {
     const { size } = this.props
     //Draw the chessboard background
     for (let y = 0; y < 8; y++) {
@@ -227,7 +229,7 @@ class Board extends React.Component {
           selectable: false,
           hoverCursor: 'default'
         });
-        canvas.add(square);
+        this.canvas.add(square);
       }
     }
   }
@@ -237,7 +239,7 @@ class Board extends React.Component {
     let actualCoords = this.squareToCoord(coords.x, coords.y);
     return new Promise((resolve, reject) => {
       fabric.Image.fromURL(require(`../assets/icons/Chess_${pieceChars}t60.png`), oImg => {
-        if(oImg) {
+        if (oImg) {
           return resolve(oImg);
         } else {
           return reject("Can't create fabric Image");
@@ -260,7 +262,7 @@ class Board extends React.Component {
 
   //Draw the pieces on the board as represented by the "board" object
   //Use for instantiation only? Then use deltas to account for any changes...
-  drawPieces = canvas => {
+  drawPieces = () => {
     //Render the pieces on the board
     let whitePieces = [];
     let blackPieces = [];
@@ -268,10 +270,10 @@ class Board extends React.Component {
     let piecePromises = [];
 
     //Build the promises array
-    for(let y = 0; y < 8; y++) {
-      for(let x = 0; x < 8; x++) {
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
         //If it's not empty put a piece there
-        if(this.state.board[y][x] !== 'e') {
+        if (this.state.board[y][x] !== 'e') {
           piecePromises.push(this.getPiecePromise(this.state.board[y][x], {x, y}));
         }
       }
@@ -281,10 +283,10 @@ class Board extends React.Component {
     Promise.all(piecePromises).then(values => {
       //Put all the pieces on the board
       values.forEach(img => {
-        canvas.add(img);
+        this.canvas.add(img);
         img.setCoords();
 
-        if(img.pieceChars[1] === 'l') { //White
+        if (img.pieceChars[1] === 'l') { //White
           whitePieces.push(img);
         } else if(img.pieceChars[1] === 'd') { //Black
           blackPieces.push(img);
