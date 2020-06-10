@@ -113,7 +113,7 @@ export const addMoves = ({ board, array, coords, deltaX, deltaY, turn }) => {
       array.push({ x, y });
       x += deltaX;
       y += deltaY;
-  } else if (getOppositeColor(pieceChars) === turn) {
+    } else if (getOppositeColor(pieceChars) === turn) {
       //Move that attacks an opponent's piece
       array.push({ x, y });
       return;

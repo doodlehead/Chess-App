@@ -66,17 +66,19 @@ class Board extends React.Component {
   }
 
   handleMouseDown = e => {
-    if (e.target?.piece ) { //If an object/piece was clicked
+    if (e.target?.piece) { //If an object/piece was clicked
       const { board, turn } = this.state;
+      const { target, pointer, transform } = e;
+
       let squareCoords = this.coordToSquare(
-        e.pointer.x - (e.transform?.offsetX ?? 0),
-        e.pointer.y - (e.transform?.offsetY ?? 0)
+        pointer.x - (transform?.offsetX ?? 0),
+        pointer.y - (transform?.offsetY ?? 0)
       );
 
       //If you click a piece that shouldn't exist
-      if (board[squareCoords.y][squareCoords.x] !== e.target.pieceChars) {
+      if (board[squareCoords.y][squareCoords.x] !== target.pieceChars) {
         console.error(board);
-        console.error(e.target.pieceChars);
+        console.error(target.pieceChars);
         console.error(this.canvas);
         throw new Error("Fabric Canvas is out of sync with board state");
       }
@@ -86,7 +88,7 @@ class Board extends React.Component {
         moves: getValidMoves({
           board,
           coords: squareCoords,
-          pieceChars: e.target.pieceChars,
+          pieceChars: target.pieceChars,
           turn,
         })
       }, () => {
@@ -96,29 +98,30 @@ class Board extends React.Component {
   }
 
   handleBeforeMouseUp = e => {
+    const { target, transform, pointer } = e;
+
     if (e.target?.piece && e.transform) { //If an object was clicked
       const { turn, moves } = this.state;
-      const { pieceChars } = e.target;
+      const { pieceChars } = target;
+
       //Not the piece's turn
       if (turn !== colorToTurnMap[pieceChars[1]]) {
         console.error("It's not your turn!");
         return;
       }
 
-      //Get the square coords of destination
-      const toCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
+      const toCoords = this.coordToSquare(pointer.x - transform.offsetX, pointer.y - transform.offsetY);
 
       //Is the move in the valid move list?
       if (moves.some(e => e.x === toCoords.x && e.y === toCoords.y)) {
-        //Square coords of the origin
-        const fromCoords = this.coordToSquare(e.transform.original.left, e.transform.original.top);
-        this.executeMove({ fromCoords, toCoords, target: e.target })
+        const fromCoords = this.coordToSquare(transform.original?.left, transform.original?.top);
+        this.executeMove({ fromCoords, toCoords, target })
       } else {
         //Invalid move, move the object back to original square
         console.log('invalid move!');
         e.target.setOptions({
-          left: e.transform.original.left,
-          top: e.transform.original.top
+          left: transform.original?.left,
+          top: transform.original?.top
         });
         e.target.setCoords();
       }
