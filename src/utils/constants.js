@@ -1,11 +1,11 @@
 
 export const STARTING_BOARD =  [['rd1','nd1','bd1','qd1','kd1','bd2','nd2','rd2'],
-                              ['pd1','pd2','pd3','pd4','pd5','pd6','pd7','pd8'],
+                              ['pd1f','pd2f','pd3f','pd4f','pd5f','pd6f','pd7f','pd8f'],
                               ['e','e','e','e','e','e','e','e'],
                               ['e','e','e','e','e','e','e','e'],
                               ['e','e','e','e','e','e','e','e'],
                               ['e','e','e','e','e','e','e','e'],
-                              ['pl1','pl2','pl3','pl4','pl5','pl6','pl7','pl8'],
+                              ['pl1f','pl2f','pl3f','pl4f','pl5f','pl6f','pl7f','pl8f'],
                               ['rl1','nl1','bl1','ql1','kl1','bl2','nl2','rl2']];
 
 export const turns = { WHITE: 'white', BLACK: 'black' };

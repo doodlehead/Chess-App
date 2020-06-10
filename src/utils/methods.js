@@ -16,12 +16,18 @@ export const getValidMoves = ({ board, coords, pieceChars, turn }) => {
   if(pieceChars[0] === pieceTypes.PAWN) {
     if(pieceChars[1] === 'd') { //Black pawn
       addIfValid({ board, array: validMoves, x: coords.x, y: coords.y + 1 }); //down
-      (board[coords.y + 1][coords.x + 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 1, turn }); //attack right
-      (board[coords.y + 1][coords.x - 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y + 1, turn }); //attack left
+      if (pieceChars[3] === 'f' && board[coords.y + 1][coords.x] === pieceTypes.EMPTY) {
+        addIfValid({ board, array: validMoves, x: coords.x, y: coords.y + 2 });
+      }
+      (board[coords.y + 1]?.[coords.x + 1] !== pieceTypes.EMPTY) && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 1, turn }); //attack right
+      (board[coords.y + 1]?.[coords.x - 1] !== pieceTypes.EMPTY) && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y + 1, turn }); //attack left
     } else if(pieceChars[1] === 'l') { //White pawn
       addIfValid({ board, array: validMoves, x: coords.x, y: coords.y - 1 }); //up
-      (board[coords.y - 1][coords.x + 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y - 1, turn }); //attack right
-      (board[coords.y - 1][coords.x - 1] !== 'e') && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y - 1, turn }); //attack left
+      if (pieceChars[3] === 'f' && board[coords.y - 1][coords.x] === pieceTypes.EMPTY) {
+        addIfValid({ board, array: validMoves, x: coords.x, y: coords.y - 2 });
+      }
+      (board[coords.y - 1]?.[coords.x + 1] !== pieceTypes.EMPTY) && addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y - 1, turn }); //attack right
+      (board[coords.y - 1]?.[coords.x - 1] !== pieceTypes.EMPTY) && addIfValid({ board, array: validMoves, x: coords.x - 1, y: coords.y - 1, turn }); //attack left
     }
   } else if(pieceChars[0] === pieceTypes.KNIGHT) {
     addIfValid({ board, array: validMoves, x: coords.x + 1, y: coords.y + 2, turn });

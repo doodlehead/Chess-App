@@ -75,6 +75,9 @@ class Board extends React.Component {
 
       //If you click a piece that shouldn't exist
       if (board[squareCoords.y][squareCoords.x] !== e.target.pieceChars) {
+        console.error(board);
+        console.error(e.target.pieceChars);
+        console.error(this.canvas);
         throw new Error("Fabric Canvas is out of sync with board state");
       }
 
@@ -94,7 +97,7 @@ class Board extends React.Component {
 
   handleBeforeMouseUp = e => {
     if (e.target?.piece && e.transform) { //If an object was clicked
-      const { turn, moves, board } = this.state;
+      const { turn, moves } = this.state;
       const { pieceChars } = e.target;
       //Not the piece's turn
       if (turn !== colorToTurnMap[pieceChars[1]]) {
@@ -103,47 +106,16 @@ class Board extends React.Component {
       }
 
       //Get the square coords of destination
-      const squareCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
+      const toCoords = this.coordToSquare(e.pointer.x - e.transform.offsetX, e.pointer.y - e.transform.offsetY);
 
-      //Valid move
-      if (moves.some(e => e.x === squareCoords.x && e.y === squareCoords.y)) {
-        //Relay changes to the model (this.state.board)
-
+      //Is the move in the valid move list?
+      if (moves.some(e => e.x === toCoords.x && e.y === toCoords.y)) {
         //Square coords of the origin
-        const fromCoord = this.coordToSquare(e.transform.original.left, e.transform.original.top);
-
-        const newBoard = this.clone2DArray(board);
-        newBoard[fromCoord.y][fromCoord.x] = pieceTypes.EMPTY; //Set old spot to empty
-        //Take a piece
-        if (newBoard[squareCoords.y][squareCoords.x] !== pieceTypes.EMPTY) {
-          const graveyard = {...this.state.graveyard};
-          graveyard[colorToTurnMap[pieceChars[1]]].push(newBoard[squareCoords.y][squareCoords.x]);
-          this.setState({ graveyard });
-
-          //Delete the Fabric Object from the Canvas
-          this.canvas.remove(this.getPieceFromCanvas(newBoard[squareCoords.y][squareCoords.x]));
-        }
-        newBoard[squareCoords.y][squareCoords.x] = e.target.pieceChars; //Set new spot to occupied
-
-        this.setState({ board: newBoard }); //Update the board state...
-        
-        //Center the piece relative to the square
-        let corrected = this.squareToCoord(squareCoords.x, squareCoords.y);
-        e.target.setOptions({
-          left: corrected.x,
-          top: corrected.y,
-          selectable: false,
-        });
-
-        e.target.setCoords();
-
-        //Next player's turn
-        this.nextTurn();
-
+        const fromCoords = this.coordToSquare(e.transform.original.left, e.transform.original.top);
+        this.executeMove({ fromCoords, toCoords, target: e.target })
       } else {
-        //Invalid move
+        //Invalid move, move the object back to original square
         console.log('invalid move!');
-        //Move the object back to original square
         e.target.setOptions({
           left: e.transform.original.left,
           top: e.transform.original.top
@@ -151,8 +123,48 @@ class Board extends React.Component {
         e.target.setCoords();
       }
     }
-    //Remove all highlighting
     this.removeHighlights();
+  }
+
+  /**
+   * Perform a valid chess move. Mutates board state and Fabric canvas.
+   * @param {Object} fromCoords - the piece's original coordinates
+   * @param {Object} toCoords - the piece's destination coordinates
+   * @param {Object} target - the fabric object being moved
+   */
+  executeMove = ({ fromCoords, toCoords, target }) => {
+    const { board } = this.state;
+    const { pieceChars } = target;
+  
+    const newBoard = this.clone2DArray(board);
+    newBoard[fromCoords.y][fromCoords.x] = pieceTypes.EMPTY; //Set old spot to empty
+    //Take a piece
+    if (newBoard[toCoords.y][toCoords.x] !== pieceTypes.EMPTY) {
+      const graveyard = {...this.state.graveyard};
+      graveyard[colorToTurnMap[pieceChars[1]]].push(newBoard[toCoords.y][toCoords.x]);
+      this.setState({ graveyard });
+
+      //Delete the Fabric Object from the Canvas
+      this.canvas.remove(this.getPieceFromCanvas(newBoard[toCoords.y][toCoords.x]));
+    }
+    //Remove any 'special states' when a piece is moved. Eg. pawn first move, first castle.
+    const newPieceChars = pieceChars.substring(0, 3);
+    newBoard[toCoords.y][toCoords.x] = newPieceChars; //Set new spot to occupied
+
+    this.setState({ board: newBoard }); //Update the board state...
+    
+    //Center the piece relative to the square
+    let corrected = this.squareToCoord(toCoords.x, toCoords.y);
+    target.setOptions({
+      left: corrected.x,
+      top: corrected.y,
+      selectable: false,
+      pieceChars: newPieceChars
+    });
+
+    target.setCoords();
+
+    this.nextTurn();
   }
 
   //Lock the current pieces, unlock the next player's pieces
